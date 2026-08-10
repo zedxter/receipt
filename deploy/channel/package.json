@@ -1,0 +1,14 @@
+{
+  "name": "receipt-channel",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Daily healthy family dinner recipes to Telegram channel",
+  "scripts": {
+    "post": "node post-daily.mjs"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "telegram": "^2.26.22"
+  }
+}

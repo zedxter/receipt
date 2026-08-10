@@ -1,0 +1,32 @@
+# Secrets & local config
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+receipt-channel.env
+telegram-mcp.env
+
+# Local / runtime data
+home/
+*.db
+*.db-wal
+*.db-shm
+/var/
+tmp/
+*.log
+
+# Dependencies
+node_modules/
+deploy/channel/node_modules/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+.cursor/
+
+# Generated / cache
+/tmp/
+*.img
