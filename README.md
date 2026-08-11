@@ -6,7 +6,7 @@ Daily Telegram channel poster: healthy family dinner recipes (Germany — Rewe /
 
 Every morning at **07:00** (Europe/Berlin) a cron job:
 
-1. Searches the web for one balanced family dinner (via `cursor-agent`)
+1. Searches the web for one balanced family dinner (via `cursor-agent`) — **no pork**; Russian & Italian welcome (Rewe/Penny/Lidl only); soups/grains ok; rotates proteins so it is not chicken every day
 2. Saves the recipe to a local SQLite DB
 3. Downloads the dish photo from the recipe source (no AI image generation)
 4. Posts **one** Telegram message: photo + caption (incl. source link)

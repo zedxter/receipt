@@ -8,7 +8,7 @@
  */
 import { unlink } from "node:fs/promises";
 import { loadPosterEnv } from "./lib/env.js";
-import { generateRecipe } from "./lib/generate.js";
+import { generateRecipe, mentionsPork } from "./lib/generate.js";
 import { resolveRecipeImage } from "./lib/image.js";
 import {
   openDb,
@@ -19,7 +19,7 @@ import {
   upsertRecipe,
   withSourceInCaption,
 } from "./lib/db.js";
-import { notifyOwner, sendChannelPhoto } from "./lib/telegram.js";
+import { notifyOwner, sendChannelPhoto, sendOwnerPhoto } from "./lib/telegram.js";
 
 loadPosterEnv();
 
@@ -65,6 +65,10 @@ async function ensureImage(recipe, notes, db, recent) {
     });
     if (!alt || tried.has(alt.title)) break;
     tried.add(alt.title);
+    if (mentionsPork(`${alt.title}\n${alt.caption}`)) {
+      notes.push(`alt пропуск (свинина): ${alt.title}`);
+      continue;
+    }
     try {
       const image = await resolveRecipeImage(alt);
       notes.push(`переключился на рецепт из БД с рабочей картинкой: ${alt.title}`);
@@ -110,11 +114,8 @@ async function main() {
 
   try {
     if (preview) {
-      await notifyOwner(
-        `${recipe.title}\n\n${recipe.caption}\n\n(картинка: ${image.path})`,
-        "receipt preview",
-      );
-      console.log("preview DM sent");
+      await sendOwnerPhoto(image.path, recipe.caption);
+      console.log("preview photo DM sent");
       recordPost(db, recipe.id, "preview");
     } else {
       await sendChannelPhoto(image.path, recipe.caption);

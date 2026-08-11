@@ -1,4 +1,3 @@
-import { createReadStream } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { TelegramClient } from "telegram";
@@ -40,17 +39,26 @@ export async function withClient(fn) {
   }
 }
 
-/** One channel post: photo + caption (Telegram caption limit 1024). */
-export async function sendChannelPhoto(filePath, caption) {
-  const peer = channelPeer();
+/** One photo post: photo + caption (Telegram caption limit 1024). */
+export async function sendPhoto(filePath, caption, peer = null) {
+  const target = peer || channelPeer();
   const text = String(caption || "").slice(0, 1024);
   await withClient(async (client) => {
-    await client.sendFile(peer, {
-      file: createReadStream(filePath),
+    await client.sendFile(target, {
+      file: filePath,
       caption: text,
       forceDocument: false,
     });
   });
+}
+
+export async function sendChannelPhoto(filePath, caption) {
+  return sendPhoto(filePath, caption, channelPeer());
+}
+
+export async function sendOwnerPhoto(filePath, caption) {
+  const peer = process.env.RECEIPT_OWNER_PEER || "me";
+  return sendPhoto(filePath, caption, peer);
 }
 
 export async function notifyOwner(message, prefix = "receipt morning cron") {

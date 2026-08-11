@@ -8,6 +8,7 @@ import {
   upsertRecipe,
 } from "./db.js";
 
+
 const CAPTION_LIMIT = 1000;
 
 export function buildRecipePrompt({ recentTitles = [], todayLabel = "" } = {}) {
@@ -15,6 +16,12 @@ export function buildRecipePrompt({ recentTitles = [], todayLabel = "" } = {}) {
     recentTitles.length > 0
       ? `Не повторяй эти недавние блюда:\n- ${recentTitles.join("\n- ")}`
       : "Выбери блюдо, которого ещё не было в канале.";
+
+  const recentChicken =
+    recentTitles.slice(0, 4).filter((t) => mentionsChicken(t)).length >= 2;
+  const varietyHint = recentChicken
+    ? `РАЗНООБРАЗИЕ (обязательно сегодня): в последних постах уже много курицы — сегодня НЕ курица и НЕ Hähnchen. Выбери другой белок или формат: индейка, говядина, рыба, яйца, бобовые, суп, гречка/булгур, вегетарианское итальянское/русское блюдо.`
+    : `РАЗНООБРАЗИЕ: чередуй белок и формат. Не делай «курицу каждый день». Ротация: курица / индейка / говядина / рыба / яйца / бобовые / супы / крупы. Если недавние посты похожи по белку — смени белок.`;
 
   return `Ты редактор Telegram-канала «Рецепты на каждый день».
 
@@ -26,11 +33,17 @@ export function buildRecipePrompt({ recentTitles = [], todayLabel = "" } = {}) {
 - Без экзотики и редких ингредиентов
 - Вкусно, полезно, сбалансированно (белок + овощи + сложные углеводы)
 - Реалистично приготовить вечером (~45–70 мин, без ресторанной сложности)
+- БЕЗ свинины: не Schwein, Schweinefleisch, Schnitzel из свинины, Speck, Bacon, Schinken, Kasseler, Bratwurst из свинины, Mett, Schweinefilet и т.п. Курица, индейка, говядина, рыба, яйца, бобовые — ок.
+- Крупы приветствуются время от времени: гречка (Buchweizen), булгур (Bulgur); также рис, кускус, киноа — если обычно есть в Rewe/Penny/Lidl.
+- Супы тоже ок (Suppe / Eintopf): овощные, куриные, с крупами или бобовыми — сытный семейный ужин, не только «второе».
+- Кухни: можно русскую и итальянскую (и простую европейскую/немецкую), но ТОЛЬКО из продуктов Rewe/Penny/Lidl. Примеры: борщ/щи на говядине или овощные, гречка с грибами/индейкой, пельмени только если реально доступны без экзотики; паста, Risotto, Minestrone, Gnocchi, Pollo alla … без пармезана 36 месяцев и редкого морепродукта — обычный Hartkäse/Emmentaler/Mozzarella из дискаунтера ок.
 ${todayLabel ? `- Сегодня: ${todayLabel} (учти сезон, если уместно)` : ""}
+
+${varietyHint}
 
 ${avoid}
 
-Сделай короткий web-поиск (REWE Rezepte, Chefkoch, и т.п.), выбери рецепт, адаптируй порции под семью из 5.
+Сделай короткий web-поиск (REWE Rezepte, Chefkoch, russian/italian family dinner адаптируемые под DE-супермаркет, и т.п.), выбери рецепт, адаптируй порции под семью из 5.
 
 Верни ТОЛЬКО один JSON-объект (без markdown fences, без комментариев) со полями:
 {
@@ -85,6 +98,7 @@ export function sanitizeRecipe(raw) {
 
   if (!caption || caption.length < 80) return null;
   if (!okImage && !okSource) return null;
+  if (mentionsPork(`${title}\n${caption}`)) return null;
 
   // Ensure source link is in the caption (Telegram-friendly plain URL).
   if (okSource && !caption.includes(okSource)) {
@@ -110,6 +124,54 @@ export function sanitizeRecipe(raw) {
     sourceUrl: okSource,
     imagePrompt: null,
   };
+}
+
+/** Reject dishes that mention pork (family does not eat it). */
+export function mentionsPork(text) {
+  const t = String(text || "").toLowerCase();
+  // Avoid JS \b with Cyrillic — use unicode letter boundaries.
+  const patterns = [
+    /(^|[^\p{L}])свин(ин[аыуе]|иной|ой|ом|ое|ые|ых|ую|ье|ьей|ьего|ьи|ью)(?=[^\p{L}]|$)/u,
+    /(^|[^\p{L}])ветчин[аыуеой]?(?=[^\p{L}]|$)/u,
+    /(^|[^\p{L}])бекон[ауеом]?(?=[^\p{L}]|$)/u,
+    /(^|[^\p{L}])schwein(e(fleisch|filet|braten|schnitzel|haxe|bauch)?)?(?=[^\p{L}]|$)/u,
+    /(^|[^\p{L}])speck(?=[^\p{L}]|$)/u,
+    /(^|[^\p{L}])bacon(?=[^\p{L}]|$)/u,
+    /(^|[^\p{L}])schinken(?=[^\p{L}]|$)/u,
+    /(^|[^\p{L}])kasseler(?=[^\p{L}]|$)/u,
+    /(^|[^\p{L}])mett(?=[^\p{L}]|$)/u,
+    /(^|[^\p{L}])pork(?=[^\p{L}]|$)/u,
+    /(^|[^\p{L}])ham(?=[^\p{L}]|$)/u,
+    /(^|[^\p{L}])pancetta(?=[^\p{L}]|$)/u,
+    /(^|[^\p{L}])prosciutto(?=[^\p{L}]|$)/u,
+    /(^|[^\p{L}])bratwurst(?=[^\p{L}]|$)/u,
+    /(^|[^\p{L}])nürnberger(?=[^\p{L}]|$)/u,
+    /(^|[^\p{L}])schweinebraten(?=[^\p{L}]|$)/u,
+  ];
+  return patterns.some((re) => re.test(t));
+}
+
+/** Detect chicken-heavy dishes (for variety — avoid posting chicken every day). */
+export function mentionsChicken(text) {
+  const t = String(text || "").toLowerCase();
+  return (
+    /курин|курица|курицы|курицу|курицей|курочк|цыпл[её]н/.test(t) ||
+    /hähnchen|haehnchen|(^|[^\p{L}])huhn([^\p{L}]|$)|chicken|(^|[^\p{L}])pollo([^\p{L}]|$)/u.test(
+      t,
+    )
+  );
+}
+
+function tooMuchRecentChicken(recentTitles = []) {
+  return recentTitles.slice(0, 4).filter((t) => mentionsChicken(t)).length >= 2;
+}
+
+function rejectsForVariety(recipe, recentTitles = []) {
+  if (!recipe) return true;
+  const blob = `${recipe.title}\n${recipe.caption}`;
+  if (mentionsPork(blob)) return true;
+  if (tooMuchRecentChicken(recentTitles) && mentionsChicken(blob)) return true;
+  return false;
 }
 
 function runCursorAgent(prompt, { mode = null } = {}) {
@@ -233,18 +295,25 @@ function persistFresh(recipe, source) {
 function recipeFromDbFallback(notes, recentTitles = []) {
   const db = openDb();
   const count = recipeCount(db);
-  const picked = pickRandomRecipe(db, {
-    avoidDays: 21,
-    avoidTitles: recentTitles,
-    requireImage: true,
-  });
-  if (!picked) {
-    throw new Error(
-      "generation failed and recipe DB has no entries with source imageUrl/sourceUrl",
-    );
+  const avoid = [...recentTitles];
+  for (let i = 0; i < 12; i++) {
+    const picked = pickRandomRecipe(db, {
+      avoidDays: 21,
+      avoidTitles: avoid,
+      requireImage: true,
+    });
+    if (!picked) break;
+    if (rejectsForVariety(picked, recentTitles)) {
+      avoid.push(picked.title);
+      notes.push(`пропуск из БД (свинина/мало разнообразия): ${picked.title}`);
+      continue;
+    }
+    notes.push(`взял случайный рецепт из БД (всего ${count}): ${picked.title}`);
+    return { ...picked, fromDb: true };
   }
-  notes.push(`взял случайный рецепт из БД (всего ${count}): ${picked.title}`);
-  return { ...picked, fromDb: true };
+  throw new Error(
+    "generation failed and recipe DB has no suitable pork-free/varied entries with source image",
+  );
 }
 
 export async function generateRecipe(opts = {}) {
@@ -258,10 +327,14 @@ export async function generateRecipe(opts = {}) {
       console.log("generating recipe with cursor-agent...");
       const raw = await runCursorAgent(prompt, { mode: null });
       const cleaned = sanitizeRecipe(raw);
-      if (cleaned) {
+      if (cleaned && !rejectsForVariety(cleaned, recentTitles)) {
         return { recipe: persistFresh(cleaned, "cursor"), notes };
       }
-      notes.push("cursor-agent вернул текст без валидного JSON рецепта");
+      if (cleaned) {
+        notes.push("cursor-agent: отклонено из‑за однообразия (слишком много курицы подряд)");
+      } else {
+        notes.push("cursor-agent вернул текст без валидного JSON рецепта");
+      }
     } catch (e) {
       notes.push(`cursor-agent failed: ${e.message}`);
       console.warn("cursor-agent failed:", e.message);
@@ -272,11 +345,15 @@ export async function generateRecipe(opts = {}) {
     const api = await apiLlmRecipe(prompt);
     if (api) {
       const cleaned = sanitizeRecipe(api);
-      if (cleaned) {
+      if (cleaned && !rejectsForVariety(cleaned, recentTitles)) {
         notes.push("использован LLM API fallback");
         return { recipe: persistFresh(cleaned, "llm"), notes };
       }
-      notes.push("LLM API вернул невалидный JSON");
+      if (cleaned) {
+        notes.push("LLM API: отклонено из‑за однообразия (слишком много курицы подряд)");
+      } else {
+        notes.push("LLM API вернул невалидный JSON");
+      }
     }
   } catch (e) {
     notes.push(`LLM API failed: ${e.message}`);

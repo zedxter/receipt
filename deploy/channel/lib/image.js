@@ -4,29 +4,10 @@ import { dirname, join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { tmpdir } from "node:os";
 import { randomBytes } from "node:crypto";
+import { spawnSync } from "node:child_process";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
-
-function extFromContentType(ct = "") {
-  if (ct.includes("png")) return ".png";
-  if (ct.includes("webp")) return ".webp";
-  if (ct.includes("gif")) return ".gif";
-  return ".jpg";
-}
-
-function extFromUrl(url) {
-  try {
-    const p = new URL(url).pathname.toLowerCase();
-    if (p.endsWith(".png")) return ".png";
-    if (p.endsWith(".webp")) return ".webp";
-    if (p.endsWith(".gif")) return ".gif";
-    if (p.endsWith(".jpg") || p.endsWith(".jpeg")) return ".jpg";
-  } catch {
-    // ignore
-  }
-  return null;
-}
 
 function absolutize(url, base) {
   try {
@@ -60,7 +41,7 @@ async function downloadToFile(url, dest) {
     redirect: "follow",
     headers: {
       "User-Agent": UA,
-      Accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+      Accept: "image/jpeg,image/png",
       Referer: new URL(url).origin + "/",
     },
   });
@@ -87,6 +68,28 @@ async function imageFromSourcePage(pageUrl) {
   const img = extractImageFromHtml(html, pageUrl);
   if (!img) throw new Error("no og:image / schema image on source page");
   return img;
+}
+
+/** Telegram is picky: wrong extension / progressive JPEG → IMAGE_PROCESS_FAILED. */
+export function normalizeImageForTelegram(inputPath) {
+  const out = `${inputPath}.tg.jpg`;
+  const py = `
+from PIL import Image
+im = Image.open(${JSON.stringify(inputPath)})
+im = im.convert("RGB")
+w, h = im.size
+max_side = 1600
+if max(w, h) > max_side:
+    scale = max_side / float(max(w, h))
+    im = im.resize((int(w * scale), int(h * scale)), Image.Resampling.LANCZOS)
+im.save(${JSON.stringify(out)}, "JPEG", quality=85, optimize=True, progressive=False)
+print(${JSON.stringify(out)})
+`;
+  const r = spawnSync("python3", ["-c", py], { encoding: "utf8" });
+  if (r.status !== 0) {
+    throw new Error(`image normalize failed: ${(r.stderr || r.stdout || "").slice(0, 300)}`);
+  }
+  return (r.stdout || "").trim() || out;
 }
 
 /**
@@ -125,15 +128,15 @@ export async function resolveRecipeImage(recipe, { cacheDir } = {}) {
   for (const url of candidates) {
     const dest = join(dir, `recipe-${id}.img`);
     try {
-      const got = await downloadToFile(url, dest);
-      const ext = extFromContentType(got.contentType) || extFromUrl(url) || ".jpg";
-      const finalDest = join(dir, `recipe-${id}${ext}`);
-      if (finalDest !== dest) {
-        const { rename } = await import("node:fs/promises");
-        await rename(dest, finalDest);
+      await downloadToFile(url, dest);
+      const jpegPath = normalizeImageForTelegram(dest);
+      try {
+        await unlink(dest);
+      } catch {
+        // ignore
       }
-      notes.push(`image from source: ${url.slice(0, 160)}`);
-      return { path: finalDest, notes, imageUrl: url };
+      notes.push(`image from source (normalized JPEG): ${url.slice(0, 140)}`);
+      return { path: jpegPath, notes, imageUrl: url };
     } catch (e) {
       lastErr = e;
       notes.push(`download failed (${url.slice(0, 80)}): ${e.message}`);
