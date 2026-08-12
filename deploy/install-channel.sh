@@ -52,8 +52,8 @@ SHELL=/bin/bash
 PATH=$(dirname "$NODE_BIN"):$DEPLOY_HOME/.local/bin:/usr/local/bin:/usr/bin:/bin
 MAILTO=""
 
-# Morning recipe + photo at 07:00
-0 7 * * * $DEPLOY_USER cd $DEST && $NODE_BIN post-daily.mjs >> /var/log/receipt-channel.log 2>&1
+# Morning recipe + photo at 06:00
+0 6 * * * $DEPLOY_USER cd $DEST && $NODE_BIN post-daily.mjs >> /var/log/receipt-channel.log 2>&1
 EOF
 sudo chmod 644 /etc/cron.d/receipt-channel
 
@@ -65,7 +65,7 @@ sudo -u "$DEPLOY_USER" bash -lc "mkdir -p '$DEPLOY_HOME/.local/share/receipt' /v
 
 echo "==> Receipt poster installed"
 echo "    Channel peer: \$RECEIPT_CHANNEL in $ENV_FILE"
-echo "    Cron: 07:00 Europe/Berlin → $DEST/post-daily.mjs"
+echo "    Cron: 06:00 Europe/Berlin → $DEST/post-daily.mjs"
 echo "    Manual: cd $DEST && node post-daily.mjs [--preview|--dry-run]"
 echo "    Log: /var/log/receipt-channel.log"
 echo "    Secrets: $DEPLOY_HOME/.config/telegram-mcp.env + $ENV_FILE"
