@@ -27,5 +27,6 @@
 ## Checklist
 
 - [ ] PR description links to an Issue (Closes/Refs/Partially addresses #N)
+- [ ] PR has the correct type label (`fix`/`feat`/`chore`/`docs`/`design`/`refactor`) — set via `gh pr create --label <type>`
 - [ ] Changes are scoped to the Issue only
 - [ ] CI is green
