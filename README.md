@@ -6,12 +6,14 @@ Daily Telegram channel poster: healthy family dinner recipes (Germany — Rewe /
 
 Every morning at **06:00** (Europe/Berlin) a cron job:
 
-1. Searches the web for one balanced family dinner (via `cursor-agent`) — **no pork**; Russian & Italian welcome (Rewe/Penny/Lidl only); soups/grains ok; rotates proteins so it is not chicken every day
+1. Fetches a real recipe from REWE / BBC Good Food discovery or previously saved supported sources and adapts it through Nous Portal (`openai/gpt-6.1-sol`) — **no pork**; Russian & Italian welcome (Rewe/Penny/Lidl only); soups/grains ok; rotates proteins so it is not chicken every day
 2. Saves the recipe to a local SQLite DB
 3. Downloads the dish photo from the recipe source (no AI image generation)
 4. Posts **one** Telegram message: photo + caption (incl. source link)
 
-If search/LLM fails, a random recipe with a source image is taken from the DB.
+The generator extracts recipe ingredients, steps and the dish image from source-page JSON-LD. Model-generated URLs are replaced with the fetched source URLs. Nous is the only model provider; inherited OpenRouter, Groq or OpenAI API keys are ignored.
+
+If source retrieval/LLM fails, a random recipe with a source image is taken from the DB.
 
 ## Layout
 
@@ -33,7 +35,7 @@ assets/                       # optional local images (e.g. channel avatar)
 ```bash
 cp deploy/channel/receipt-channel.env.example ~/.config/receipt-channel.env
 chmod 600 ~/.config/receipt-channel.env
-# fill TELEGRAM_ACCOUNT_ID, RECEIPT_CHANNEL, session paths
+# fill NOUS_API_KEY, TELEGRAM_ACCOUNT_ID, RECEIPT_CHANNEL, session paths
 ```
 
 3. Install (as the user that owns the Telegram session):
@@ -52,3 +54,9 @@ node post-daily.mjs
 ```
 
 Secrets stay in `~/.config/` and are **not** committed. Do not commit Telegram session dirs (`~/.telegram-agent/`).
+
+## Validation
+
+Run `npm ci && npm test` in `deploy/channel` (Node 20). Tests use an isolated database and intercept HTTP; they never publish to Telegram.
+
+`--dry-run` generates and saves recipes, but does not publish. For migration checks, set `RECEIPT_DB` to a copy of the production database. Keep private credentials in env files with mode 0600. Remove obsolete OpenRouter and Cursor settings from the Receipt env when deploying. A rollback must keep OpenRouter disabled and use database fallback.

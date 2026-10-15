@@ -5,7 +5,8 @@
   "type": "module",
   "description": "Daily healthy family dinner recipes to Telegram channel",
   "scripts": {
-    "post": "node post-daily.mjs"
+    "post": "node post-daily.mjs",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "better-sqlite3": "^11.10.0",
